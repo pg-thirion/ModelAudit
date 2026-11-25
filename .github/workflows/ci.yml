@@ -21,7 +21,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install .
       - run: python -m compileall -q modelaudit tests
-      - run: python -m unittest discover -s tests -v
+      - run: python -m pip install coverage==7.13.3
+      - run: python -m coverage run --source=modelaudit -m unittest discover -s tests -v
+      - run: python -m coverage report --omit='*/__main__.py' --fail-under=85
       - run: modelaudit --demo secure --repeat 3 --output reports/secure.json
       - name: Verify vulnerable simulation fails the gate
         shell: bash
