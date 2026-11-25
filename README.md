@@ -57,3 +57,22 @@ This CLI is a staging regression tool, not a hosted scanner. Do not expose it as
 `suite.py` validates test definitions; `adapters.py` isolates target I/O; `engine.py` applies deterministic assertions and aggregates outcomes; `cli.py` handles execution and JSON reporting. Unit tests use only synthetic or local mock targets.
 
 See [security methodology](docs/methodology.md) for limitations and OWASP category mapping.
+
+## Advanced evaluation (v0.3)
+
+Preview a suite without contacting any endpoint:
+
+```sh
+modelaudit --plan --suite suites/chat.json --repeat 3 --max-requests 100
+modelaudit --demo secure --output reports/result.json --csv reports/result.csv --junit reports/result.xml --html reports/result.html
+```
+
+Filter with repeatable `--category`, `--severity`, and `--case` arguments. Live filtered suites must retain a positive control. `--seed` shuffles cases reproducibly; `--max-requests` limits the planned number of requests including follow-ups. `--interval` spaces trials (not individual turns). `--deadline` is a soft start-of-trial budget in seconds, not cancellation of in-flight requests. Use external job deadlines and sandbox cost limits for hard bounds. `--version` displays the installed version.
+
+Each case can include up to five `followups`. The chat adapter sends the complete user/assistant history, reset for each trial. Generic endpoints must accept a `messages` array on follow-up requests in addition to the latest `prompt`. The generic application must independently isolate any server-side state. Required text and additional rules evaluate the last response; forbidden text and event assertions cover all turns. Missing event evidence on any turn causes an error. The offline demo is a fixed single-turn fixture.
+
+Optional `rules`: `exact` (case-sensitive whole response), `any_of` (one or more literal markers), `min_chars`, `max_chars`, `json_object`, `required_keys`, `forbidden_keys` (top-level JSON keys), `normalize` (NFKC for substring assertions), and `max_latency_ms` (whole conversation elapsed time). Duplicate JSON keys and non-finite constants are invalid. Rules are deterministic and do not measure semantic intent.
+
+Schema v3 reports contain trial-level counts, trial pass rate, severity-weighted case pass rate (weights 1/2/4/8), cases with mixed pass/fail trials, and median/p95 latency of non-error trials. These are descriptive metrics, not calibrated security probabilities. Baseline comparisons additionally check model and execution policy. Old report schema versions are not comparable. JSON is the complete evidence summary; CSV, JUnit and static HTML are redacted summaries. Protect model and target labels from sensitive information.
+
+See [advanced suite](suites/advanced.json) for examples. It is designed for an instrumented staging target, not the fixed offline simulation.

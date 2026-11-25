@@ -18,4 +18,4 @@ Use a staging account, synthetic records and disabled or mock tool execution. Do
 
 ## Future work
 
-Add statistical baselines, signed report provenance, richer semantic evaluators and authenticated multi-turn application adapters. These are not implemented in v0.2.
+Add statistical baselines, signed report provenance, richer semantic evaluators and authenticated server-side session adapters. These are not implemented in v0.3.

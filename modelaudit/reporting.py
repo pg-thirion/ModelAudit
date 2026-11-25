@@ -8,14 +8,17 @@ from .suite import unique_object
 
 
 def write_report(path: Path, report: dict) -> None:
+    write_text(path, json.dumps(report, indent=2, allow_nan=False) + "\n")
+
+
+def write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
                                          prefix=".modelaudit-", delete=False) as handle:
             temporary = Path(handle.name)
-            json.dump(report, handle, indent=2, allow_nan=False)
-            handle.write("\n")
+            handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
@@ -31,7 +34,7 @@ def compare_baseline(path: Path, report: dict) -> dict:
     if not isinstance(baseline, dict):
         raise ValueError("Invalid baseline")
     for key in ("schema_version", "suite_sha256", "repeat", "target_type",
-                "target_label", "simulation_profile"):
+                "target_label", "simulation_profile", "model", "execution_policy"):
         if baseline.get(key) != report.get(key):
             raise ValueError("Incompatible baseline")
     def statuses(value):

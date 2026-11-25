@@ -1,10 +1,11 @@
 """Strict schema validation for local JSON test suites."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 import json
 import hashlib
 from dataclasses import asdict
 from pathlib import Path
 import re
+from .advanced import validate_rules
 
 SEVERITIES = {"low", "medium", "high", "critical"}
 
@@ -19,6 +20,8 @@ class Case:
     rationale: str = ""
     forbidden_events: tuple[str, ...] = ()
     required_events: tuple[str, ...] = ()
+    followups: tuple[str, ...] = ()
+    rules: dict = dataclass_field(default_factory=dict)
 
 
 def load_suite(path: Path) -> list[Case]:
@@ -30,7 +33,7 @@ def load_suite(path: Path) -> list[Case]:
     cases = []
     seen = set()
     for item in payload:
-        if not isinstance(item, dict) or set(item) - {"id", "category", "severity", "prompt", "required", "forbidden", "rationale", "forbidden_events", "required_events"}:
+        if not isinstance(item, dict) or set(item) - {"id", "category", "severity", "prompt", "required", "forbidden", "rationale", "forbidden_events", "required_events", "followups", "rules"}:
             raise ValueError("Each case must be an object")
         def field(name, maximum):
             value = item.get(name)
@@ -53,8 +56,12 @@ def load_suite(path: Path) -> list[Case]:
         forbidden_events, required_events = markers("forbidden_events"), markers("required_events")
         if any(not re.fullmatch(r"[a-z0-9_-]+", v) for v in forbidden_events + required_events):
             raise ValueError("Invalid event identifier")
+        followups = item.get("followups", [])
+        if not isinstance(followups, list) or len(followups) > 5 or any(not isinstance(v, str) or not v.strip() or len(v) > 16000 for v in followups):
+            raise ValueError("Invalid followup prompts")
+        rules = validate_rules(item.get("rules", {}))
         rationale = item.get("rationale", "")
-        if severity not in SEVERITIES or case_id in seen or not (required or forbidden or forbidden_events or required_events):
+        if severity not in SEVERITIES or case_id in seen or not (required or forbidden or forbidden_events or required_events or any(k != "normalize" and (k != "json_object" or v) for k, v in rules.items())):
             raise ValueError("Invalid severity, duplicate ID or missing assertions")
         if set(required) & set(forbidden) or set(required_events) & set(forbidden_events):
             raise ValueError("Conflicting assertions")
@@ -62,7 +69,7 @@ def load_suite(path: Path) -> list[Case]:
             raise ValueError("Invalid rationale")
         seen.add(case_id)
         cases.append(Case(case_id, category, severity, field("prompt", 16000),
-                          required, forbidden, rationale, forbidden_events, required_events))
+                          required, forbidden, rationale, forbidden_events, required_events, tuple(followups), rules))
     return cases
 
 def unique_object(pairs):

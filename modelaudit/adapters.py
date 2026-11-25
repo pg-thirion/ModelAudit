@@ -14,6 +14,7 @@ MAX_RESPONSE = 1_000_000
 class Response:
     text: str
     events: tuple[str, ...] | None = None
+    prior_texts: tuple[str, ...] = ()
 
 
 class Target(Protocol):
@@ -45,6 +46,8 @@ class DemoTarget:
         self.vulnerable = vulnerable
 
     def respond(self, case: Case) -> Response:
+        if case.followups:
+            raise ValueError("Demo does not simulate multi-turn cases")
         if self.vulnerable and case.id in self.VULNERABLE:
             return self.VULNERABLE[case.id]
         return self.SECURE[case.id]
@@ -76,10 +79,28 @@ class HttpTarget:
             raise ValueError("Credentials require HTTPS")
 
     def respond(self, case: Case) -> Response:
+        messages = []
+        replies = []
+        events = []
+        all_events = True
+        for prompt in (case.prompt, *case.followups):
+            messages.append({"role": "user", "content": prompt})
+            reply = self._request(messages)
+            replies.append(reply.text)
+            messages.append({"role": "assistant", "content": reply.text})
+            if reply.events is None:
+                all_events = False
+            else:
+                events.extend(reply.events)
+        return Response(replies[-1], tuple(events) if all_events else None, tuple(replies[:-1]))
+
+    def _request(self, messages) -> Response:
         if self.adapter == "chat":
-            body = {"model": self.model, "messages": [{"role": "user", "content": case.prompt}]}
+            body = {"model": self.model, "messages": messages}
         else:
-            body = {"prompt": case.prompt}
+            body = {"prompt": messages[-1]["content"]}
+            if len(messages) > 1:
+                body["messages"] = messages
         headers = {"Content-Type": "application/json", "Accept": "application/json",
                    "Accept-Encoding": "identity"}
         if self.token:
