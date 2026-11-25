@@ -1,6 +1,8 @@
 """Strict schema validation for local JSON test suites."""
 from dataclasses import dataclass
 import json
+import hashlib
+from dataclasses import asdict
 from pathlib import Path
 import re
 
@@ -15,18 +17,20 @@ class Case:
     required: tuple[str, ...]
     forbidden: tuple[str, ...]
     rationale: str = ""
+    forbidden_events: tuple[str, ...] = ()
+    required_events: tuple[str, ...] = ()
 
 
 def load_suite(path: Path) -> list[Case]:
     if path.stat().st_size > 1_000_000:
         raise ValueError("Suite exceeds 1 MB")
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
     if not isinstance(payload, list) or not 1 <= len(payload) <= 200:
         raise ValueError("Suite must contain 1 to 200 cases")
     cases = []
     seen = set()
     for item in payload:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or set(item) - {"id", "category", "severity", "prompt", "required", "forbidden", "rationale", "forbidden_events", "required_events"}:
             raise ValueError("Each case must be an object")
         def field(name, maximum):
             value = item.get(name)
@@ -46,14 +50,31 @@ def load_suite(path: Path) -> list[Case]:
             raise ValueError("IDs and categories must be alphanumeric identifiers")
         severity = field("severity", 16)
         required, forbidden = markers("required"), markers("forbidden")
+        forbidden_events, required_events = markers("forbidden_events"), markers("required_events")
+        if any(not re.fullmatch(r"[a-z0-9_-]+", v) for v in forbidden_events + required_events):
+            raise ValueError("Invalid event identifier")
         rationale = item.get("rationale", "")
-        if severity not in SEVERITIES or case_id in seen or not (required or forbidden):
+        if severity not in SEVERITIES or case_id in seen or not (required or forbidden or forbidden_events or required_events):
             raise ValueError("Invalid severity, duplicate ID or missing assertions")
-        if set(required) & set(forbidden):
+        if set(required) & set(forbidden) or set(required_events) & set(forbidden_events):
             raise ValueError("Conflicting assertions")
         if not isinstance(rationale, str) or len(rationale) > 1000:
             raise ValueError("Invalid rationale")
         seen.add(case_id)
         cases.append(Case(case_id, category, severity, field("prompt", 16000),
-                          required, forbidden, rationale))
+                          required, forbidden, rationale, forbidden_events, required_events))
     return cases
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def suite_fingerprint(cases: list[Case]) -> str:
+    canonical = json.dumps([asdict(case) for case in cases], sort_keys=True,
+                           ensure_ascii=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("ascii")).hexdigest()

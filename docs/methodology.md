@@ -4,7 +4,7 @@ ModelAudit is a regression harness, not a penetration testing service or a certi
 
 ## Risk coverage
 
-The suite illustrates OWASP Top 10 for LLM Applications (2025) categories LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM05 Improper Output Handling, LLM06 Excessive Agency, and LLM07 System Prompt Leakage. Coverage is partial, not an OWASP endorsement. A text-only tool assertion cannot determine whether a side effect actually occurred. Verify tool calls against sandbox audit logs separately.
+The suite illustrates OWASP Top 10 for LLM Applications (2025) categories LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM05 Improper Output Handling, LLM06 Excessive Agency, and LLM07 System Prompt Leakage. Coverage is partial, not an OWASP endorsement. A text-only tool assertion cannot determine whether a side effect actually occurred. The generic adapter supports application-reported event IDs with positive and negative assertions. Collect these from trusted sandbox audit instrumentation, not the model, and independently verify completeness.
 
 Reference: https://genai.owasp.org/llm-top-10/
 
@@ -18,4 +18,4 @@ Use a staging account, synthetic records and disabled or mock tool execution. Do
 
 ## Future work
 
-Add structured tool-event assertions, statistical baselines, signed report provenance, richer semantic evaluators and authenticated multi-turn application adapters. These are not implemented in v0.1.
+Add statistical baselines, signed report provenance, richer semantic evaluators and authenticated multi-turn application adapters. These are not implemented in v0.2.
